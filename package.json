@@ -1,0 +1,37 @@
+{
+  "name": "Advanced Ecommerce Project",
+  "version": "1.0.0",
+  "main": "dist/server.js",
+  "scripts": {
+    "start": "npm run build && node ./dist/server.js",
+    "dev": "ts-node ./src/server.ts",
+    "build": "tsc -p .",
+    "lint": "eslint . --ext .ts",
+    "nodemon": "nodemon"
+  },
+  "keywords": [],
+  "author": "Joseph Etim Ibok",
+  "license": "ISC",
+  "dependencies": {
+    "@types/express": "^5.0.0",
+    "bcrypt": "^5.1.1",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "nodemailer": "^6.10.0",
+    "nodemon": "^3.1.9",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "sequelize": "^6.37.7",
+    "typescript": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "body-parser": "^1.20.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express-async-handler": "^1.2.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.14.1"
+  }
+}
