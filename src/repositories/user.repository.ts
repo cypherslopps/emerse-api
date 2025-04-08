@@ -1,22 +1,23 @@
 import client from "../config/dbConfig";
 import { CreateNewUserDTO } from "../dto/auth/createNewUser.dto";
 import { UserDTO } from "../dto/users/user.dto";
-import { UserPayload, UserResponse } from "../types/user.types";
-
-const user = {
-    id: 3,
-    email: "josephibok@gmail.com",
-    username: "username",
-    password: "password"
-};
 
 class UserRepository {
     async findAll(): Promise<UserDTO[]> {
-        return [user]
+        const response = await client.query(
+            "SELECT * FROM users"
+        );
+
+        return response.rows.length ? response.rows[0] : null;
     }
 
     async findById(_id: UserDTO["id"]): Promise<UserDTO> {
-        return user;
+        const response = await client.query(
+            "SELECT id, email, username, role FROM users WHERE id = $1",
+            [_id]
+        );
+
+        return response.rows.length ? response.rows[0] : null;
     }
 
     async findByEmail(email: UserDTO["email"]): Promise<UserDTO> {
@@ -26,6 +27,18 @@ class UserRepository {
         );
 
         return response.rows.length ? response.rows[0] : null;
+    }
+
+    async validateUser(email: UserDTO["email"]) {
+        const response = await client.query(
+            "UPDATE users SET valid = $1 WHERE email = $2",
+            [
+                true,
+                email
+            ]
+        );
+
+        return response.rowCount === 1;
     }
 
     async updatePassword(id: UserDTO["id"], newPassword: UserDTO["password"]) {
@@ -40,10 +53,11 @@ class UserRepository {
     async create(data: CreateNewUserDTO) {
         try {
             const response = await client.query(
-                "INSERT INTO users (email, username, password) VALUES ($1, $2, $3)",
+                "INSERT INTO users (email, username, role, password) VALUES ($1, $2, $3, $4)",
                 [
                     data.email,
                     data.username,
+                    data.role ?? "customer",
                     data.password
                 ]
             );
@@ -52,6 +66,7 @@ class UserRepository {
 
             return done;
         } catch (err) {
+            console.log(err);
             throw new Error("An error occurred when registering user.");
         }
     }

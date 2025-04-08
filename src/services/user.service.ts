@@ -1,16 +1,19 @@
 import bcrypt from "bcrypt";
 
-import UserRepository from "../repository/user.repository";
-import { UserPayload, UserResponse } from "../types/user.types";
+import UserRepository from "../repositories/user.repository";
+import jwt from "jsonwebtoken";
 import { CreateNewUserDTO } from "../dto/auth/createNewUser.dto";
 import { UserDTO } from "../dto/users/user.dto";
 import { LoginUserDTO } from "../dto/auth/loginUser.dto";
+import MailService from "./mail.service";
 
 class UserService {
     private _userRepository: UserRepository;
+    private _mailService: MailService;
 
     constructor() {
         this._userRepository = new UserRepository();
+        this._mailService = new MailService();
     }
 
     /**
@@ -23,21 +26,30 @@ class UserService {
     }
 
     /**
-     * @dev Hash user password
-     * @param password
+     * @dev This method checks if a user exists. Returns either the user or (null | throw an error)
+     * @param id 
      */
-    async hashPassword(password: UserDTO["password"]) {
-        const hashedPassword = await bcrypt.hash(password, 10);
-        return hashedPassword;
+    async findUserById(id: UserDTO["id"]) {
+        const user = await this._userRepository.findById(id);
+        return user;
     }
 
     /**
-     * @dev Compare user password
-     * @param password
+     * @dev Send verify mail token
+     * @param email
      */
-    async comparePassword(userPassword: UserDTO["password"], payloadPassword: UserDTO["password"]) {
-        const isPasswordEquallyMatched = await bcrypt.compare(payloadPassword, userPassword);
-        return isPasswordEquallyMatched;
+    async sendVerificationCode(email: UserDTO["email"]) {
+        // Create verify mail token
+        const verifyMailToken = await jwt.sign(
+            { email: email },
+            process.env.JWT_VERIFY_MAIL_TOKEN,
+            { expiresIn: "10m" }
+        )
+
+        // Send user mail
+        this._mailService.sendVerifyMail(email, {
+            token: verifyMailToken
+        });
     }
 
     /**
@@ -46,9 +58,17 @@ class UserService {
      * @param username
      * @param password
      */
-    async createUser(data: CreateNewUserDTO) {
+    async register(data: CreateNewUserDTO) {
+        // Check if user already exists
+        const user = await this._userRepository.findByEmail(data.email);
+
+        // Throw an error if user exists
+        if (user) {
+            throw new Error("User already exists");
+        }
+
         // Hash password if user doesn't exist
-        const hashedPassword = await this.hashPassword(data.password);
+        const hashedPassword = await bcrypt.hash(data.password, 10);
             
         const newUser = {
             ...data,
@@ -58,8 +78,87 @@ class UserService {
         // Store user in database
         this._userRepository.create(newUser);
 
-        // Return message after successfully adding user
-        return "Successfully added user";
+        // Send verification code
+        await this.sendVerificationCode(data.email);
+
+        return true;
+    }
+
+    /**
+     * @dev Login user service
+     * @param email
+     * @param password
+     */
+    async login(data: LoginUserDTO) {
+        // Check if user exists
+        const user = await this._userRepository.findByEmail(data.email);
+
+        // Throw error if user doesn't exists
+        if (!user) {
+            throw new Error("User does not exist!");
+        }
+
+        // Compare payload password to hashed password
+        const isPasswordEquallyMatched = await bcrypt.compare(data.password, user.password);
+
+        if (!isPasswordEquallyMatched) {
+            throw new Error("Invalid Credentials");
+        }
+
+        // Create access token & Session
+        const userInfo = {
+            userId: user.id,
+            role: user.role
+        };
+
+        const token = await jwt.sign(
+            userInfo,
+            process.env.JWT_ACCESS_TOKEN,
+            { expiresIn: "1w" }
+        );
+        const refreshToken = await jwt.sign(
+            userInfo,
+            process.env.JWT_ACCESS_TOKEN
+        );
+
+        return { token, refreshToken };
+    }
+
+    /**
+     * @dev Verifies user mail
+     * @payload token
+     */
+    async verifyUserMail(token: string) {
+        const userData = jwt.verify(token, process.env.JWT_VERIFY_MAIL_TOKEN)
+        
+        if (!userData) {
+            throw new Error("Invalid Token");
+        }
+
+        // Validate user
+        this._userRepository.validateUser(userData.email);
+    }
+
+    /**
+     * @dev Resnd user verification code
+     * @param email
+     */
+    async resendVerificationCode(email: UserDTO["email"]) {
+        // Check user
+        const user = await this._userRepository.findByEmail(email);
+
+        // Throw an error if user doesn't exist
+        if (!user) {
+            throw new Error("User does not exist!");
+        }
+
+        // Throw an error if user is already verified
+        if (user.valid) {
+            throw new Error("User is already validated");
+        }
+
+        // Send verification code
+        await this.sendVerificationCode(email);
     }
 
     /**

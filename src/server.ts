@@ -1,16 +1,20 @@
 import express from 'express';
 import "dotenv/config";
 import passport from "passport";
-import session from "express-session";
+import cookieParser from "cookie-parser";
 import bodyParser from "body-parser";
+import session from "express-session";
 import cors from "cors";
-import nodemailer from "nodemailer";
 
 // Routes
-import AuthRoutes from "./routes/auth.routes";
+import authRoutes from "./routes/auth.routes";
+import userRoutes from "./routes/user.routes";
+
+// utils
+import logger from "./utils/logger";
 
 // Middlewares
-import logger from "./middlewares/logger.middleware";
+import errorHandler from './middlewares/error.middleware';
 
 // Configs 
 import psql from "./config/dbConfig";
@@ -23,39 +27,8 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser());
 app.use(logger);
-
-console.log(process.env.GMAIL_HOST, process.env.GMAIL_USER, process.env.GMAIL_PASSWORD);
-
-const transporter = nodemailer.createTransport({
-  host: process.env.GMAIL_HOST,
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_PASSWORD
-  }
-});
-
-
-app.post("/send-mail", (req, res) => {
-  const mailOptions = {
-    from: process.env.GMAIL_USER,
-    to: "josephibok75@gmail.com",
-    subject: "Sending Email using Node.js",
-    text: "That was easy!"
-  }
-  
-  transporter.sendMail(mailOptions, (err, info) => {
-    if (err) {
-      console.error("Error", err)
-    }
-  
-    console.log("Email sent: ", info)
-  });
-  
-  res.status(200).send("Mail successfully sent");
-})
 
 // Use session middleware
 app.use(
@@ -67,27 +40,27 @@ app.use(
 )
 
 // Error handling middleware function
-app.use((err, req, res, next) => {
-  console.log(err.stack);
-  res.status(401).send("Unauthenticated!");
-});
 
 // initialize passport and session
 app.use(passport.initialize());
 app.use(passport.session());
 
 // API Routes
-app.use("/api/auth", AuthRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
+
+// Middleware to parse JSON
+app.use(errorHandler);
 
 // Postgres Configuration
 psql
-  .connect()
-  .then(() => {
-    console.log("Connected to PostgresSQL database");
-  })
-  .catch(err => {
-    console.error("Error connecting to PostgresSQL database", err);
-  });
+.connect()
+.then(() => {
+  console.log("Connected to PostgresSQL database");
+})
+.catch(err => {
+  console.error("Error connecting to PostgresSQL database", err);
+});
 
 // Start App
 app.listen(port, () => {

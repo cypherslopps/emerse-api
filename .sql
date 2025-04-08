@@ -4,9 +4,11 @@ CREATE TABLE USERS (
     id SERIAL PRIMARY KEY,
     email VARCHAR(50) NOT NULL,
     username VARCHAR(50) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'customer',
     password TEXT NOT NULL,
+    valid BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP(3) NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL
 );
 
@@ -34,3 +36,6 @@ UPDATE users SET email = payload.email WHERE id = payload.id;
 
 --# Update user password
 UPDATE users SET password = payload.password WHERE id = payload.id;
+
+--# Validate user
+UPDATE users SET valid = payload.valid WHERE email = payload.email;

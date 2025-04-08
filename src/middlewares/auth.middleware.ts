@@ -1,17 +1,24 @@
 import jwt from "jsonwebtoken";
 
-const verifyToken = (req, res, next) => {
-    const jwtCookieToken = req.cookies?.jwt ?? null;
+const authenticate = (req, res, next) => {
+    let token;
+    const cookieToken = req.cookies?.jwt ?? null;
 
-    if (jwtCookieToken === null) return res.sendStatus(401);
+    if ((req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) && cookieToken) {
+        token = req.headers.authorization?.split(" ")[1];
+    }
 
-    jwt.verify(jwtCookieToken, process.env.JWT_ACCESS_TOKEN, (err, user) => {
-        if (err) return res.sendStatus(401);
-        req.user = user;
+    if (token === null || cookieToken === null) return res.sendStatus(401);
+
+    try {
+        req.user = jwt.verify(token, process.env.JWT_ACCESS_TOKEN)
         next();
-    });
+    } catch (err) {
+        res.status(403).json({ message: "Invalid token" });
+    }
 }
 
+
 export {
-    verifyToken
+    authenticate
 };

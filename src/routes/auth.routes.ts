@@ -7,10 +7,14 @@ import {
     registerUser,
     loginUser,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    logout,
+    verifyUserMail,
+    resendVerificationCode
 } from "../controllers/auth.controller";
+import { authenticate } from "../middlewares/auth.middleware";
 
-const router = express.Router();
+const authRouter = express.Router();
 
 /**
  * @dev Passport Google OAuth 2.0
@@ -25,14 +29,14 @@ passport.use(new GoogleStrategy({
     }
 ));
 
-router.get(
+authRouter.get(
     "/google",     
     passport.authenticate("google", {
         scope: ["email", "profile"]
     })
 );
 
-router.get(
+authRouter.get(
     "/google/callback",
     passport.authenticate("google", {
         access_type: "offline",
@@ -48,19 +52,31 @@ router.get(
  * @dev Registers new user
  * @param CreateNewUserDTO
  */
-router.post("/register", registerUser);
+authRouter.post("/register", registerUser);
 
 /**
  * @dev Login user
  * @param LoginUserDTO
  */
-router.post("/login", loginUser);
+authRouter.post("/login", loginUser);
+
+/**
+ * @dev Verify user
+ * @param token
+ */
+authRouter.post("/verify-mail", verifyUserMail);
+
+/**
+ * @dev Resend verification code
+ * @param email
+ */
+authRouter.post("/resend-verify-code", resendVerificationCode);
 
 /**
  * @dev Forgot password
  * @param email
  */
-router.post("/forgot-password", forgotPassword);
+authRouter.post("/forgot-password", forgotPassword);
 
 /**
  * @dev Reset Password
@@ -68,6 +84,12 @@ router.post("/forgot-password", forgotPassword);
  * @param email
  * @param newPassword
  */
-router.post("/reset-password", resetPassword);
+authRouter.post("/reset-password", resetPassword);
 
-export default router;
+/**
+ * @dev Logout user
+ */
+authRouter.post('/logout', authenticate, logout);
+
+
+export default authRouter;

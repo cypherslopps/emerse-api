@@ -6,14 +6,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 require("dotenv/config");
 const passport_1 = __importDefault(require("passport"));
-const express_session_1 = __importDefault(require("express-session"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const body_parser_1 = __importDefault(require("body-parser"));
+const express_session_1 = __importDefault(require("express-session"));
 const cors_1 = __importDefault(require("cors"));
-const nodemailer_1 = __importDefault(require("nodemailer"));
 // Routes
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
+const user_routes_1 = __importDefault(require("./routes/user.routes"));
+// utils
+const logger_1 = __importDefault(require("./utils/logger"));
 // Middlewares
-const logger_middleware_1 = __importDefault(require("./middlewares/logger.middleware"));
+const error_middleware_1 = __importDefault(require("./middlewares/error.middleware"));
 // Configs 
 const dbConfig_1 = __importDefault(require("./config/dbConfig"));
 // import 
@@ -23,32 +26,8 @@ const port = process.env.PORT || 5000;
 app.use((0, cors_1.default)());
 app.use(body_parser_1.default.json());
 app.use(body_parser_1.default.urlencoded({ extended: false }));
-app.use(logger_middleware_1.default);
-console.log(process.env.GMAIL_HOST, process.env.GMAIL_USER, process.env.GMAIL_PASSWORD);
-const transporter = nodemailer_1.default.createTransport({
-    host: process.env.GMAIL_HOST,
-    port: 465,
-    secure: true,
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASSWORD
-    }
-});
-app.post("/send-mail", (req, res) => {
-    const mailOptions = {
-        from: process.env.GMAIL_USER,
-        to: "josephibok75@gmail.com",
-        subject: "Sending Email using Node.js",
-        text: "That was easy!"
-    };
-    transporter.sendMail(mailOptions, (err, info) => {
-        if (err) {
-            console.error("Error", err);
-        }
-        console.log("Email sent: ", info);
-    });
-    res.status(200).send("Mail successfully sent");
-});
+app.use((0, cookie_parser_1.default)());
+app.use(logger_1.default);
 // Use session middleware
 app.use((0, express_session_1.default)({
     secret: process.env.SESSION_SECRET_KEY,
@@ -56,15 +35,14 @@ app.use((0, express_session_1.default)({
     saveUnintialized: false
 }));
 // Error handling middleware function
-app.use((err, req, res, next) => {
-    console.log(err.stack);
-    res.status(401).send("Unauthenticated!");
-});
 // initialize passport and session
 app.use(passport_1.default.initialize());
 app.use(passport_1.default.session());
 // API Routes
 app.use("/api/auth", auth_routes_1.default);
+app.use("/api/users", user_routes_1.default);
+// Middleware to parse JSON
+app.use(error_middleware_1.default);
 // Postgres Configuration
 dbConfig_1.default
     .connect()

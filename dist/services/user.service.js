@@ -13,10 +13,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const bcrypt_1 = __importDefault(require("bcrypt"));
-const user_repository_1 = __importDefault(require("../repository/user.repository"));
+const user_repository_1 = __importDefault(require("../repositories/user.repository"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const mail_service_1 = __importDefault(require("./mail.service"));
 class UserService {
     constructor() {
         this._userRepository = new user_repository_1.default();
+        this._mailService = new mail_service_1.default();
     }
     /**
      * @dev This method checks if a user exists. Returns either the user or (null | throw an error)
@@ -29,23 +32,27 @@ class UserService {
         });
     }
     /**
-     * @dev Hash user password
-     * @param password
+     * @dev This method checks if a user exists. Returns either the user or (null | throw an error)
+     * @param id
      */
-    hashPassword(password) {
+    findUserById(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            const hashedPassword = yield bcrypt_1.default.hash(password, 10);
-            return hashedPassword;
+            const user = yield this._userRepository.findById(id);
+            return user;
         });
     }
     /**
-     * @dev Compare user password
-     * @param password
+     * @dev Send verify mail token
+     * @param email
      */
-    comparePassword(userPassword, payloadPassword) {
+    sendVerificationCode(email) {
         return __awaiter(this, void 0, void 0, function* () {
-            const isPasswordEquallyMatched = yield bcrypt_1.default.compare(payloadPassword, userPassword);
-            return isPasswordEquallyMatched;
+            // Create verify mail token
+            const verifyMailToken = yield jsonwebtoken_1.default.sign({ email: email }, process.env.JWT_VERIFY_MAIL_TOKEN, { expiresIn: "10m" });
+            // Send user mail
+            this._mailService.sendVerifyMail(email, {
+                token: verifyMailToken
+            });
         });
     }
     /**
@@ -54,15 +61,84 @@ class UserService {
      * @param username
      * @param password
      */
-    createUser(data) {
+    register(data) {
         return __awaiter(this, void 0, void 0, function* () {
+            // Check if user already exists
+            const user = yield this._userRepository.findByEmail(data.email);
+            // Throw an error if user exists
+            if (user) {
+                throw new Error("User already exists");
+            }
             // Hash password if user doesn't exist
-            const hashedPassword = yield this.hashPassword(data.password);
+            const hashedPassword = yield bcrypt_1.default.hash(data.password, 10);
             const newUser = Object.assign(Object.assign({}, data), { password: hashedPassword });
             // Store user in database
             this._userRepository.create(newUser);
-            // Return message after successfully adding user
-            return "Successfully added user";
+            // Send verification code
+            yield this.sendVerificationCode(data.email);
+            return true;
+        });
+    }
+    /**
+     * @dev Login user service
+     * @param email
+     * @param password
+     */
+    login(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check if user exists
+            const user = yield this._userRepository.findByEmail(data.email);
+            // Throw error if user doesn't exists
+            if (!user) {
+                throw new Error("User does not exist!");
+            }
+            // Compare payload password to hashed password
+            const isPasswordEquallyMatched = yield bcrypt_1.default.compare(data.password, user.password);
+            if (!isPasswordEquallyMatched) {
+                throw new Error("Invalid Credentials");
+            }
+            // Create access token & Session
+            const userInfo = {
+                userId: user.id,
+                role: user.role
+            };
+            const token = yield jsonwebtoken_1.default.sign(userInfo, process.env.JWT_ACCESS_TOKEN, { expiresIn: "1w" });
+            const refreshToken = yield jsonwebtoken_1.default.sign(userInfo, process.env.JWT_ACCESS_TOKEN);
+            return { token, refreshToken };
+        });
+    }
+    /**
+     * @dev Verifies user mail
+     * @payload token
+     */
+    verifyUserMail(token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const userData = jsonwebtoken_1.default.verify(token, process.env.JWT_VERIFY_MAIL_TOKEN);
+            if (!userData) {
+                throw new Error("Invalid Token");
+            }
+            // Validate user
+            this._userRepository.validateUser(userData.email);
+        });
+    }
+    /**
+     * @dev Resnd user verification code
+     * @param email
+     */
+    resendVerificationCode(email) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check user
+            const user = yield this._userRepository.findByEmail(email);
+            // Throw an error if user doesn't exist
+            if (!user) {
+                throw new Error("User does not exist!");
+            }
+            // Throw an error if user is already verified
+            if (user.valid) {
+                throw new Error("User is already validated");
+            }
+            // Send verification code
+            yield this.sendVerificationCode(email);
         });
     }
     /**
