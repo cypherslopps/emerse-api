@@ -93,9 +93,13 @@ class UserService {
         // Check if user exists
         const user = await this._userRepository.findByEmail(data.email);
 
+        if (!user.valid) {
+            throw new Error("User is unverified");
+        }
+
         // Throw error if user doesn't exists
         if (!user) {
-            throw new Error("User does not exist!");
+            throw new Error("User not found");
         }
 
         // Compare payload password to hashed password
@@ -135,6 +139,13 @@ class UserService {
             throw new Error("Invalid Token");
         }
 
+        // Check user
+        const user = await this._userRepository.findByEmail(userData.email);
+
+        if (!user) {
+            throw new Error("User not found");
+        }
+
         // Validate user
         this._userRepository.validateUser(userData.email);
     }
@@ -149,7 +160,7 @@ class UserService {
 
         // Throw an error if user doesn't exist
         if (!user) {
-            throw new Error("User does not exist!");
+            throw new Error("User not found");
         }
 
         // Throw an error if user is already verified

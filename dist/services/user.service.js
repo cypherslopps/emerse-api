@@ -88,9 +88,12 @@ class UserService {
         return __awaiter(this, void 0, void 0, function* () {
             // Check if user exists
             const user = yield this._userRepository.findByEmail(data.email);
+            if (!user.valid) {
+                throw new Error("User is unverified");
+            }
             // Throw error if user doesn't exists
             if (!user) {
-                throw new Error("User does not exist!");
+                throw new Error("User not found");
             }
             // Compare payload password to hashed password
             const isPasswordEquallyMatched = yield bcrypt_1.default.compare(data.password, user.password);
@@ -117,6 +120,11 @@ class UserService {
             if (!userData) {
                 throw new Error("Invalid Token");
             }
+            // Check user
+            const user = yield this._userRepository.findByEmail(userData.email);
+            if (!user) {
+                throw new Error("User not found");
+            }
             // Validate user
             this._userRepository.validateUser(userData.email);
         });
@@ -131,7 +139,7 @@ class UserService {
             const user = yield this._userRepository.findByEmail(email);
             // Throw an error if user doesn't exist
             if (!user) {
-                throw new Error("User does not exist!");
+                throw new Error("User not found");
             }
             // Throw an error if user is already verified
             if (user.valid) {
