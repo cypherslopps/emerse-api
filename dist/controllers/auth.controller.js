@@ -167,27 +167,24 @@ exports.resetPassword = resetPassword;
  * @dev logs out user. Only authorized user can log out
  */
 const logout = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     try {
-        if ((_a = req.cookies) === null || _a === void 0 ? void 0 : _a.jwt) {
-            req.logout();
+        req.logout(() => {
             req.session.destroy((err) => {
                 if (err) {
                     console.error('Error destroying session:', err);
                     return res.status(500).send('Could not log out');
                 }
-                // res.clearCookie('connect.sid');
-                // res.redirect('/login'); // Redirect to home or login page
-                const googleLogoutUrl = 'https://accounts.google.com/logout';
-                res.redirect(googleLogoutUrl);
+                res.redirect("/api/auth/login");
             });
+        });
+        // Clear cookies if it exists
+        if (req === null || req === void 0 ? void 0 : req.cookies.jwt) {
             res.clearCookie("jwt");
-            res.setHeader("Location", "/auth/login");
-            res.status(200).json({
-                status: true,
-                message: "Logged out successfully"
-            });
         }
+        res.status(200).json({
+            status: true,
+            message: "Logged out successfully"
+        });
     }
     catch (error) {
         next(error);

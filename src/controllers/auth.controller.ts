@@ -164,28 +164,25 @@ const resetPassword = async (req: Request, res: Response, next: NextFunction) =>
  */
 const logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        if (req.cookies?.jwt) {
-            req.logout();
+        req.logout(() => {
             req.session.destroy((err) => {
                 if (err) {
-                  console.error('Error destroying session:', err);
-                  return res.status(500).send('Could not log out');
+                    console.error('Error destroying session:', err);
+                    return res.status(500).send('Could not log out');
                 }
-                // res.clearCookie('connect.sid');
-
-                // res.redirect('/login'); // Redirect to home or login page
-                const googleLogoutUrl = 'https://accounts.google.com/logout';
-                res.redirect(googleLogoutUrl);
-              });
-
-            res.clearCookie("jwt");
-            res.setHeader("Location", "/auth/login");
-            
-            res.status(200).json({
-                status: true,
-                message: "Logged out successfully"
+                res.redirect("/api/auth/login");
             });
+        });
+
+        // Clear cookies if it exists
+        if (req?.cookies.jwt) {
+            res.clearCookie("jwt");
         }
+        
+        res.status(200).json({
+            status: true,
+            message: "Logged out successfully"
+        });
     } catch (error) {
         next(error)
     }

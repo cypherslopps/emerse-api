@@ -1,4 +1,5 @@
 import express from "express";
+
 import passport from "../config/passport";
 
 // Auth Controllers
@@ -91,12 +92,11 @@ authRouter.post("/forgot-password", forgotPassword);
  * @param email
  * @param newPassword
  */
-authRouter.post("/reset-password", resetPassword);
+authRouter.put("/reset-password", resetPassword);
 
 /**
  * @dev Logout user
  */
 authRouter.post('/logout', authenticate, logout);
-
 
 export default authRouter;

@@ -67,7 +67,7 @@ authRouter.post("/forgot-password", auth_controller_1.forgotPassword);
  * @param email
  * @param newPassword
  */
-authRouter.post("/reset-password", auth_controller_1.resetPassword);
+authRouter.put("/reset-password", auth_controller_1.resetPassword);
 /**
  * @dev Logout user
  */

@@ -22,4 +22,6 @@ userRouter.get("/", authenticate, authorizedRoles("admin"), getAllUsers);
  */
 userRouter.get("/me", authenticate, authorizedRoles("customer", "admin"), getUser);
 
+
+
 export default userRouter;
