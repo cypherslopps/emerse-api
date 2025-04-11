@@ -4,31 +4,37 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
-const passport_1 = __importDefault(require("passport"));
-const passport_google_oauth20_1 = require("passport-google-oauth20");
+const passport_1 = __importDefault(require("../config/passport"));
 // Auth Controllers
 const auth_controller_1 = require("../controllers/auth.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const authRouter = express_1.default.Router();
-/**
- * @dev Passport Google OAuth 2.0
- */
-passport_1.default.use(new passport_google_oauth20_1.Strategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: `http://localhost:8000/auth/google/callback`
-}, function (accessToken, refreshToken, profile, cb) {
-    console.log(accessToken, refreshToken, profile, cb);
-}));
 authRouter.get("/google", passport_1.default.authenticate("google", {
     scope: ["email", "profile"]
 }));
 authRouter.get("/google/callback", passport_1.default.authenticate("google", {
-    access_type: "offline",
-    scope: ["email", "profile"]
+    succussRedirect: "/api/auth/google/success",
+    failureRedirect: "/api/auth/google/failure"
 }), (req, res) => {
-    // if (!re)
-    console.log(req.user);
+    const user = req.user;
+    // Set access token in cookie
+    res.cookie("jwt", user === null || user === void 0 ? void 0 : user.accessToken, {
+        maxAge: 60 * 60 * 60 * 24 * 7,
+        httpOnly: true,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV !== "development"
+    });
+    res.status(200).json({
+        status: true,
+        accessToken: user === null || user === void 0 ? void 0 : user.accessToken,
+        refreshToken: user === null || user === void 0 ? void 0 : user.refreshToken
+    });
+});
+authRouter.get("/google/success", (req, res) => {
+    res.json({ message: "Successful" });
+});
+authRouter.get("/google/failure", (req, res) => {
+    res.json({ message: "Failure" });
 });
 /**
  * @dev Registers new user

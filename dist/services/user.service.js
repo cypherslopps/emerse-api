@@ -22,6 +22,15 @@ class UserService {
         this._mailService = new mail_service_1.default();
     }
     /**
+     * @dev Find all users
+     */
+    findAllUsers() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const users = this._userRepository.findAll();
+            return users;
+        });
+    }
+    /**
      * @dev This method checks if a user exists. Returns either the user or (null | throw an error)
      * @param email
      */
@@ -42,17 +51,49 @@ class UserService {
         });
     }
     /**
+     * @dev Find user by Google ID
+     * @param google_id
+     */
+    findUserByGoogleID(google_id) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const user = yield this._userRepository.findByGoogleID(google_id);
+            ;
+            return user;
+        });
+    }
+    /**
+     * @dev Check if user exists
+     * @param email
+     */
+    checksUserAvailability(email) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check if user exists
+            const user = yield this._userRepository.findByEmail(email);
+            // Throw error if user doesn't exists
+            if (!user) {
+                throw new Error("User not found");
+            }
+            return user;
+        });
+    }
+    /**
      * @dev Send verify mail token
      * @param email
      */
-    sendVerificationCode(email) {
+    sendCodeToMail(email, secretKey) {
         return __awaiter(this, void 0, void 0, function* () {
-            // Create verify mail token
-            const verifyMailToken = yield jsonwebtoken_1.default.sign({ email: email }, process.env.JWT_VERIFY_MAIL_TOKEN, { expiresIn: "10m" });
-            // Send user mail
-            this._mailService.sendVerifyMail(email, {
-                token: verifyMailToken
-            });
+            try {
+                const secretToken = secretKey !== null && secretKey !== void 0 ? secretKey : process.env.JWT_VERIFY_MAIL_TOKEN;
+                // Create verify mail token
+                const verifyMailToken = yield jsonwebtoken_1.default.sign({ email: email }, secretToken, { expiresIn: "10m" });
+                // Send user mail
+                this._mailService.sendVerifyMail(email, {
+                    token: verifyMailToken
+                });
+            }
+            catch (error) {
+                throw new Error((error === null || error === void 0 ? void 0 : error.message) || "An error occured");
+            }
         });
     }
     /**
@@ -71,12 +112,32 @@ class UserService {
             }
             // Hash password if user doesn't exist
             const hashedPassword = yield bcrypt_1.default.hash(data.password, 10);
+            // New user payload
             const newUser = Object.assign(Object.assign({}, data), { password: hashedPassword });
             // Store user in database
             this._userRepository.create(newUser);
             // Send verification code
-            yield this.sendVerificationCode(data.email);
+            yield this.sendCodeToMail(data.email);
             return true;
+        });
+    }
+    /**
+     * @dev Register OAuth user
+     * @param google_id - Unique user Google ID
+     * @param email - user email
+     * @param displayName
+     * @param email_verified
+     */
+    registerAuthUser(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check user
+            const doesGoogleIDExist = yield this._userRepository.findByGoogleID(data.google_id);
+            const doesUserEmailExist = yield this._userRepository.findByEmail(data.email);
+            if (doesGoogleIDExist || doesUserEmailExist) {
+                throw new Error("User already exists");
+            }
+            // Create User
+            this._userRepository.createAuth(data);
         });
     }
     /**
@@ -87,13 +148,9 @@ class UserService {
     login(data) {
         return __awaiter(this, void 0, void 0, function* () {
             // Check if user exists
-            const user = yield this._userRepository.findByEmail(data.email);
+            const user = yield this.checksUserAvailability(data.email);
             if (!user.valid) {
                 throw new Error("User is unverified");
-            }
-            // Throw error if user doesn't exists
-            if (!user) {
-                throw new Error("User not found");
             }
             // Compare payload password to hashed password
             const isPasswordEquallyMatched = yield bcrypt_1.default.compare(data.password, user.password);
@@ -111,6 +168,46 @@ class UserService {
         });
     }
     /**
+     * @dev Send user reset password token to mail
+     * @param email
+     */
+    sendResetPasswordToken(email) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check if user exists
+            yield this.checksUserAvailability(email);
+            // Send Code
+            yield this.sendCodeToMail(email, process.env.JWT_RESET_PASSWORD_TOKEN);
+            return true;
+        });
+    }
+    /**
+     * @dev Reset user password
+     * @param email
+     * @param token
+     * @param newPassword
+     */
+    resetUserPassword(email, token, newPassword) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check if user exists
+            const user = yield this.checksUserAvailability(email);
+            // Verify token
+            const verifiedToken = jsonwebtoken_1.default.verify(token, process.env.JWT_RESET_PASSWORD_TOKEN);
+            // Handle error if token is invalid
+            if (!verifiedToken) {
+                throw new Error("Invalid token");
+            }
+            // Compare both passwords
+            const isEquallyMatched = yield bcrypt_1.default.compare(user.password, newPassword);
+            if (isEquallyMatched) {
+                throw new Error("Use a different password");
+            }
+            // Hash new password
+            const hashedPassword = yield bcrypt_1.default.hash(newPassword, 10);
+            // Update password
+            this._userRepository.updatePassword(user.id, hashedPassword);
+        });
+    }
+    /**
      * @dev Verifies user mail
      * @payload token
      */
@@ -121,12 +218,9 @@ class UserService {
                 throw new Error("Invalid Token");
             }
             // Check user
-            const user = yield this._userRepository.findByEmail(userData.email);
-            if (!user) {
-                throw new Error("User not found");
-            }
+            const user = yield this.checksUserAvailability(userData.email);
             // Validate user
-            this._userRepository.validateUser(userData.email);
+            this._userRepository.validateUser(user.email);
         });
     }
     /**
@@ -136,29 +230,13 @@ class UserService {
     resendVerificationCode(email) {
         return __awaiter(this, void 0, void 0, function* () {
             // Check user
-            const user = yield this._userRepository.findByEmail(email);
-            // Throw an error if user doesn't exist
-            if (!user) {
-                throw new Error("User not found");
-            }
+            const user = yield this.checksUserAvailability(email);
             // Throw an error if user is already verified
             if (user.valid) {
                 throw new Error("User is already validated");
             }
             // Send verification code
-            yield this.sendVerificationCode(email);
-        });
-    }
-    /**
-     * @dev Update user password
-     * @param userId - UserDTO["id"]
-     * @param oldPassword - UserDTO["password"]
-     * @param newPassword - UserDTO["password"]
-     */
-    updateUserPassword(userId, newPassword) {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this._userRepository.updatePassword(userId, newPassword);
-            return "Password successfully updated";
+            yield this.sendCodeToMail(email);
         });
     }
 }

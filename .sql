@@ -2,10 +2,12 @@
 --# Create User Table
 CREATE TABLE USERS (                                                     
     id SERIAL PRIMARY KEY,
+    google_id VARCHAR(50) UNIQUE,
     email VARCHAR(50) NOT NULL,
-    username VARCHAR(50) NOT NULL,
+    username VARCHAR(50),
+    display_name VARCHAR(50),
     role VARCHAR(50) NOT NULL DEFAULT 'customer',
-    password TEXT NOT NULL,
+    password TEXT,
     valid BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

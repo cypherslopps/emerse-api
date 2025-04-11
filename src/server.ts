@@ -24,11 +24,15 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middlewares
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:3000",
+  credentials: true
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(logger);
+app.use(errorHandler);
 
 // Use session middleware
 app.use(
@@ -39,8 +43,6 @@ app.use(
   })
 )
 
-// Error handling middleware function
-
 // initialize passport and session
 app.use(passport.initialize());
 app.use(passport.session());
@@ -48,9 +50,6 @@ app.use(passport.session());
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-
-// Middleware to parse JSON
-app.use(errorHandler);
 
 // Postgres Configuration
 psql

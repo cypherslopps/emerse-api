@@ -1,6 +1,5 @@
 import express from "express";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import passport from "../config/passport";
 
 // Auth Controllers
 import {
@@ -16,19 +15,6 @@ import { authenticate } from "../middlewares/auth.middleware";
 
 const authRouter = express.Router();
 
-/**
- * @dev Passport Google OAuth 2.0
- */
-passport.use(new GoogleStrategy({
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: `http://localhost:8000/auth/google/callback`
-    },
-    function(accessToken, refreshToken, profile, cb) {
-        console.log(accessToken, refreshToken, profile, cb)
-    }
-));
-
 authRouter.get(
     "/google",     
     passport.authenticate("google", {
@@ -39,14 +25,35 @@ authRouter.get(
 authRouter.get(
     "/google/callback",
     passport.authenticate("google", {
-        access_type: "offline",
-        scope: ["email", "profile"]
+        succussRedirect: "/api/auth/google/success",
+        failureRedirect: "/api/auth/google/failure"
     }),
     (req, res) => {
-        // if (!re)
-        console.log((req as any).user);
+        const user = (req as any).user;
+        
+        // Set access token in cookie
+        res.cookie("jwt", user?.accessToken, {
+            maxAge: 60 * 60 * 60 * 24 * 7,
+            httpOnly: true,
+            sameSite: "strict",
+            secure: process.env.NODE_ENV !== "development"
+        });
+
+        res.status(200).json({
+            status: true,
+            accessToken: user?.accessToken,
+            refreshToken: user?.refreshToken
+        })
     }
 )
+
+authRouter.get("/google/success", (req, res) => {
+    res.json({ message: "Successful" });
+});
+
+authRouter.get("/google/failure", (req, res) => {
+    res.json({ message: "Failure" });
+});
 
 /**
  * @dev Registers new user

@@ -17,7 +17,7 @@ class UserRepository {
     findAll() {
         return __awaiter(this, void 0, void 0, function* () {
             const response = yield dbConfig_1.default.query("SELECT * FROM users");
-            return response.rows.length ? response.rows[0] : null;
+            return response.rows.length ? response.rows : null;
         });
     }
     findById(_id) {
@@ -29,6 +29,12 @@ class UserRepository {
     findByEmail(email) {
         return __awaiter(this, void 0, void 0, function* () {
             const response = yield dbConfig_1.default.query("SELECT * FROM users WHERE email = $1", [email]);
+            return response.rows.length ? response.rows[0] : null;
+        });
+    }
+    findByGoogleID(google_id) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield dbConfig_1.default.query("SELECT id, email, display_name, role FROM users WHERE google_id = $1", [google_id]);
             return response.rows.length ? response.rows[0] : null;
         });
     }
@@ -47,23 +53,31 @@ class UserRepository {
             return response.rowCount === 1;
         });
     }
+    // Create traditional user
     create(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            try {
-                const response = yield dbConfig_1.default.query("INSERT INTO users (email, username, role, password) VALUES ($1, $2, $3, $4)", [
-                    data.email,
-                    data.username,
-                    (_a = data.role) !== null && _a !== void 0 ? _a : "customer",
-                    data.password
-                ]);
-                const done = (response === null || response === void 0 ? void 0 : response.rowCount) === 1;
-                return done;
-            }
-            catch (err) {
-                console.log(err);
-                throw new Error("An error occurred when registering user.");
-            }
+            const response = yield dbConfig_1.default.query("INSERT INTO users (email, username, role, password) VALUES ($1, $2, $3, $4)", [
+                data.email,
+                data.username,
+                data.role,
+                data.password
+            ]);
+            const done = (response === null || response === void 0 ? void 0 : response.rowCount) === 1;
+            return done;
+        });
+    }
+    // Create Google OAuth user
+    createAuth(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Check user
+            const response = yield dbConfig_1.default.query("INSERT INTO users (google_id, email, display_name, valid) VALUES ($1, $2, $3, $4)", [
+                data.google_id,
+                data.email,
+                data.displayName,
+                data.email_verified
+            ]);
+            const done = (response === null || response === void 0 ? void 0 : response.rowCount) === 1;
+            return done;
         });
     }
     update(data, email) {

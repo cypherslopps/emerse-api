@@ -28,7 +28,7 @@ const registerUser = (req, res, next) => __awaiter(void 0, void 0, void 0, funct
             yield userService.register({
                 email,
                 username,
-                role,
+                role: role !== null && role !== void 0 ? role : "customer",
                 password
             });
             res.status(201).json({
@@ -66,7 +66,7 @@ const loginUser = (req, res, next) => __awaiter(void 0, void 0, void 0, function
             // Send successful message & code
             res.status(200).json({
                 status: true,
-                token,
+                accessToken: token,
                 refreshToken
             });
         }
@@ -127,30 +127,16 @@ exports.resendVerificationCode = resendVerificationCode;
 const forgotPassword = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { email } = req.body;
     try {
-        // if (email) {
-        //     // Check if user exists
-        //     const user = await userService.findUserByEmail(email);
-        //     if (!user) {
-        //         res.status(404).json({ message: "User does not exist" });
-        //     }
-        //     // Create token
-        //     const token = jwt.sign(
-        //         { userId: user.id },
-        //         process.env.JWT_ACCESS_TOKEN,
-        //         { expiresIn: "15m" }
-        //     );
-        //     res.cookie("access_fk", token, {
-        //         maxAge: 15 * 60 * 1000,
-        //         httpOnly: true,
-        //         sameSite: "strict",
-        //         secure: process.env.NODE_ENV !== "development"
-        //     });
-        //     res.status(200).json({
-        //         message: `${process.env.FRONTEND_URL}?token=${token}&email=${user.email}`
-        //     });
-        // } else {
-        //     res.status(409).json({ message: "Check email payload" })
-        // }
+        if (email) {
+            yield userService.sendResetPasswordToken(email);
+            res.status(200).json({
+                status: true,
+                message: "Token sent to user mail"
+            });
+        }
+        else {
+            res.status(409).json({ message: "Check email payload" });
+        }
     }
     catch (error) {
         next(error);
@@ -166,35 +152,11 @@ exports.forgotPassword = forgotPassword;
 const resetPassword = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { token, email, newPassword } = req.body;
     try {
-        // if (email && token && newPassword) {
-        //     // Check if user exists
-        //     const user = await userService.findUserByEmail(email);
-        //     if (!user) {
-        //         res.status(404).json({ message: "User does not exist" });
-        //     }
-        //     // Verify token
-        //     const verifiedToken = jwt.verify(token, process.env.JWT_ACCESS_TOKEN);
-        //     // Handle error if token is invalid
-        //     if (!verifiedToken) {
-        //         res.status(401).json({ message: "Invalid token" });
-        //     }
-        //     // Compare both passwords
-        //     const isEquallyMatched = await userService.comparePassword(user.password, newPassword);
-        //     if (isEquallyMatched) {
-        //         res.status(409).json({ 
-        //             message: "Use a different password"
-        //         });
-        //     }
-        //     // Hash new password
-        //     const hashedPassword = await userService.hashPassword(newPassword);
-        //     // Update password
-        //     const response = await userService.updateUserPassword(user.id, hashedPassword);
-        //     res.status(200).json({
-        //         message: response
-        //     });
-        // } else {
-        //     res.status(409).json({ message: "Check payload" })
-        // }
+        yield userService.resetUserPassword(email, token, newPassword);
+        res.status(200).json({
+            status: true,
+            message: "Password successfully reset"
+        });
     }
     catch (error) {
         next(error);
@@ -208,9 +170,23 @@ const logout = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     var _a;
     try {
         if ((_a = req.cookies) === null || _a === void 0 ? void 0 : _a.jwt) {
+            req.logout();
+            req.session.destroy((err) => {
+                if (err) {
+                    console.error('Error destroying session:', err);
+                    return res.status(500).send('Could not log out');
+                }
+                // res.clearCookie('connect.sid');
+                // res.redirect('/login'); // Redirect to home or login page
+                const googleLogoutUrl = 'https://accounts.google.com/logout';
+                res.redirect(googleLogoutUrl);
+            });
             res.clearCookie("jwt");
             res.setHeader("Location", "/auth/login");
-            res.end();
+            res.status(200).json({
+                status: true,
+                message: "Logged out successfully"
+            });
         }
     }
     catch (error) {

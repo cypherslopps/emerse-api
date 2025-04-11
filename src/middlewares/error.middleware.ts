@@ -29,6 +29,11 @@ export const errorHandler = (err, req, res, next) => {
       error.message = err.message;
     }
 
+    if (err.message === "User is unverified") {
+      error.statusCode = 401;
+      error.message = err.message;
+    }
+
     if (err.message === "Invalid credentials") {
       error.statusCode = 400;
       error.message = err.message;

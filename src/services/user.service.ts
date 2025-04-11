@@ -2,7 +2,7 @@ import bcrypt from "bcrypt";
 
 import UserRepository from "../repositories/user.repository";
 import jwt from "jsonwebtoken";
-import { CreateNewUserDTO } from "../dto/auth/createNewUser.dto";
+import { CreateGoogleAuthDTO, CreateNewUserDTO } from "../dto/auth/createNewUser.dto";
 import { UserDTO } from "../dto/users/user.dto";
 import { LoginUserDTO } from "../dto/auth/loginUser.dto";
 import MailService from "./mail.service";
@@ -14,6 +14,14 @@ class UserService {
     constructor() {
         this._userRepository = new UserRepository();
         this._mailService = new MailService();
+    }
+
+    /**
+     * @dev Find all users
+     */
+    async findAllUsers() {
+        const users = this._userRepository.findAll();
+        return users;
     }
 
     /**
@@ -35,21 +43,52 @@ class UserService {
     }
 
     /**
+     * @dev Find user by Google ID
+     * @param google_id
+     */
+    async findUserByGoogleID(google_id: CreateGoogleAuthDTO["google_id"]) {
+        const user = await this._userRepository.findByGoogleID(google_id);;
+        return user;
+    } 
+
+    /**
+     * @dev Check if user exists
+     * @param email
+     */
+    async checksUserAvailability(email: UserDTO["email"]) {
+        // Check if user exists
+        const user = await this._userRepository.findByEmail(email);
+        
+        // Throw error if user doesn't exists
+        if (!user) {
+            throw new Error("User not found");
+        }
+
+        return user;
+    }
+
+    /**
      * @dev Send verify mail token
      * @param email
      */
-    async sendVerificationCode(email: UserDTO["email"]) {
-        // Create verify mail token
-        const verifyMailToken = await jwt.sign(
-            { email: email },
-            process.env.JWT_VERIFY_MAIL_TOKEN,
-            { expiresIn: "10m" }
-        )
+    async sendCodeToMail(email: UserDTO["email"], secretKey?: string) {
+        try {
+            const secretToken = secretKey ?? process.env.JWT_VERIFY_MAIL_TOKEN;
 
-        // Send user mail
-        this._mailService.sendVerifyMail(email, {
-            token: verifyMailToken
-        });
+            // Create verify mail token
+            const verifyMailToken = await jwt.sign(
+                { email: email },
+                secretToken,
+                { expiresIn: "10m" }
+            )
+
+            // Send user mail
+            this._mailService.sendVerifyMail(email, {
+                token: verifyMailToken
+            });
+        } catch(error) {
+            throw new Error(error?.message || "An error occured");
+        }
     }
 
     /**
@@ -70,6 +109,7 @@ class UserService {
         // Hash password if user doesn't exist
         const hashedPassword = await bcrypt.hash(data.password, 10);
             
+        // New user payload
         const newUser = {
             ...data,
             password: hashedPassword
@@ -79,9 +119,29 @@ class UserService {
         this._userRepository.create(newUser);
 
         // Send verification code
-        await this.sendVerificationCode(data.email);
+        await this.sendCodeToMail(data.email);
 
         return true;
+    }
+
+    /**
+     * @dev Register OAuth user
+     * @param google_id - Unique user Google ID
+     * @param email - user email
+     * @param displayName
+     * @param email_verified
+     */
+    async registerAuthUser(data: CreateGoogleAuthDTO) {
+        // Check user
+        const doesGoogleIDExist = await this._userRepository.findByGoogleID(data.google_id);
+        const doesUserEmailExist = await this._userRepository.findByEmail(data.email);
+
+        if (doesGoogleIDExist || doesUserEmailExist) {
+            throw new Error("User already exists");
+        }
+
+        // Create User
+        this._userRepository.createAuth(data);
     }
 
     /**
@@ -91,15 +151,10 @@ class UserService {
      */
     async login(data: LoginUserDTO) {
         // Check if user exists
-        const user = await this._userRepository.findByEmail(data.email);
+        const user = await this.checksUserAvailability(data.email);
 
         if (!user.valid) {
             throw new Error("User is unverified");
-        }
-
-        // Throw error if user doesn't exists
-        if (!user) {
-            throw new Error("User not found");
         }
 
         // Compare payload password to hashed password
@@ -129,6 +184,56 @@ class UserService {
     }
 
     /**
+     * @dev Send user reset password token to mail
+     * @param email
+     */
+    async sendResetPasswordToken(email: UserDTO["email"]) {
+        // Check if user exists
+        await this.checksUserAvailability(email);
+
+        // Send Code
+        await this.sendCodeToMail(email, process.env.JWT_RESET_PASSWORD_TOKEN);
+
+        return true;
+    }
+
+    /**
+     * @dev Reset user password
+     * @param email
+     * @param token
+     * @param newPassword
+     */
+    async resetUserPassword(
+        email: UserDTO["email"],
+        token: string,
+        newPassword: UserDTO["password"]
+    ) {
+        // Check if user exists
+        const user = await this.checksUserAvailability(email);
+
+        // Verify token
+        const verifiedToken = jwt.verify(token, process.env.JWT_RESET_PASSWORD_TOKEN);
+
+        // Handle error if token is invalid
+        if (!verifiedToken) {
+            throw new Error("Invalid token");
+        }
+
+        // Compare both passwords
+        const isEquallyMatched = await bcrypt.compare(user.password, newPassword);
+        
+        if (isEquallyMatched) {
+            throw new Error("Use a different password");
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update password
+        this._userRepository.updatePassword(user.id, hashedPassword);
+    }
+
+    /**
      * @dev Verifies user mail
      * @payload token
      */
@@ -140,14 +245,10 @@ class UserService {
         }
 
         // Check user
-        const user = await this._userRepository.findByEmail(userData.email);
-
-        if (!user) {
-            throw new Error("User not found");
-        }
+        const user = await this.checksUserAvailability(userData.email);
 
         // Validate user
-        this._userRepository.validateUser(userData.email);
+        this._userRepository.validateUser(user.email);
     }
 
     /**
@@ -156,12 +257,7 @@ class UserService {
      */
     async resendVerificationCode(email: UserDTO["email"]) {
         // Check user
-        const user = await this._userRepository.findByEmail(email);
-
-        // Throw an error if user doesn't exist
-        if (!user) {
-            throw new Error("User not found");
-        }
+        const user = await this.checksUserAvailability(email);
 
         // Throw an error if user is already verified
         if (user.valid) {
@@ -169,21 +265,7 @@ class UserService {
         }
 
         // Send verification code
-        await this.sendVerificationCode(email);
-    }
-
-    /**
-     * @dev Update user password
-     * @param userId - UserDTO["id"]
-     * @param oldPassword - UserDTO["password"]
-     * @param newPassword - UserDTO["password"]
-     */
-    async updateUserPassword(
-        userId: UserDTO["id"],
-        newPassword: UserDTO["password"]
-    ) {
-        await this._userRepository.updatePassword(userId, newPassword);
-        return "Password successfully updated";
+        await this.sendCodeToMail(email);
     }
 }
 

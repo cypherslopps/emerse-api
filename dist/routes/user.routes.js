@@ -13,16 +13,11 @@ const userRouter = express_1.default.Router();
  * @dev Get all users
  * @returns UserDTO[]
  */
-userRouter.get("/", auth_middleware_1.authenticate, (0, roles_middlewares_1.authorizedRoles)("admin"), (req, res) => { res.json({ title: "ALL USERS" }); });
+userRouter.get("/", auth_middleware_1.authenticate, (0, roles_middlewares_1.authorizedRoles)("admin"), user_controller_1.getAllUsers);
 /**
  * @dev Get authenticated user
  * @returns UserDTO[]
  */
 userRouter.get("/me", auth_middleware_1.authenticate, (0, roles_middlewares_1.authorizedRoles)("customer", "admin"), user_controller_1.getUser);
-/**
- * @dev Get all users
- * @returns UserDTO[]
- */
-userRouter.get("/users", (req, res) => { });
 exports.default = userRouter;
 //# sourceMappingURL=user.routes.js.map
